@@ -1,0 +1,8 @@
+﻿flask
+pandas
+groq
+python-dotenv
+reportlab
+numpy
+scikit-learn
+transformers
