@@ -1,0 +1,1151 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>UFDR AI Forensics Suite</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+<body>
+  <script type="application/json" id="dashboard-data-json">
+    {{ dashboard_data | safe }}
+  </script>
+
+  <div class="app-container">
+    <nav class="sidebar glass-panel">
+      <div class="logo">
+        <i class="fa-solid fa-shield-halved neon-text"></i>
+        <span>UFDR AI</span>
+      </div>
+      <ul class="nav-links">
+        <li class="active" data-target="upload"><i class="fa-solid fa-cloud-arrow-up"></i> Upload Data</li>
+        <li data-target="dashboard" class="disabled"><i class="fa-solid fa-chart-pie"></i> Dashboard</li>
+        <li data-target="search" class="disabled"><i class="fa-solid fa-magnifying-glass"></i> Search & Filter</li>
+        <li data-target="timeline" class="disabled"><i class="fa-solid fa-timeline"></i> Timeline</li>
+        <li data-target="locations" class="disabled"><i class="fa-solid fa-map-location-dot"></i> Location Map</li>
+        <li data-target="alerts" class="disabled"><i class="fa-solid fa-triangle-exclamation"></i> Alerts</li>
+        <li data-target="graph" class="disabled"><i class="fa-solid fa-users-viewfinder"></i> Connections</li>
+        <li data-target="chat" class="disabled"><i class="fa-solid fa-robot"></i> AI Chat</li>
+        <li data-target="report" class="disabled"><i class="fa-solid fa-file-lines"></i> Report</li>
+      </ul>
+    </nav>
+
+    <main class="main-content">
+      <section id="view-upload" class="view-section active">
+        <header class="hero">
+          <h1>Universal Forensic Data Report</h1>
+          <p class="subtitle">Upload UFDR, JSON, or CSV files to extract messages, calls, contacts, and locations.</p>
+        </header>
+
+        <div class="upload-container glass-panel">
+          <form class="upload-form" action="/upload" method="post" enctype="multipart/form-data" id="upload-form">
+            <div class="dropzone" id="dropzone">
+              <i class="fa-solid fa-file-export drop-icon" id="drop-icon"></i>
+              <h3 id="drop-title">Drag & Drop Files</h3>
+              <p id="drop-desc">Supports .ufdr, .json, .csv</p>
+              <input name="files" type="file" multiple accept=".json,.ufdr,.csv" id="file-input" />
+              <label for="file-input" class="btn primary outline">Select Files</label>
+            </div>
+            <div id="file-list-display"></div>
+            <div class="upload-actions">
+              <button class="btn primary glow" type="submit" id="upload-btn">Analyze Data</button>
+            </div>
+            <div id="loading-spinner" style="display:none; margin-top: 1rem; color: var(--neon-cyan);">
+              <i class="fa-solid fa-circle-notch fa-spin"></i> Uploading... Please wait...
+            </div>
+          </form>
+        </div>
+      </section>
+
+      <section id="view-dashboard" class="view-section">
+        <header class="top-nav">
+          <h2>Dashboard Overview</h2>
+          <div class="risk-score glass-panel">
+            <span>Risk Score:</span>
+            <strong class="neon-text" id="rs-val">0</strong>/100
+          </div>
+        </header>
+        <div class="dashboard-grid">
+          <div class="stat-card glass-panel flex-col">
+            <div class="stat-icon"><i class="fa-solid fa-message"></i></div>
+            <div class="stat-value" id="stat-msgs">0</div>
+            <div class="stat-label">Messages</div>
+          </div>
+          <div class="stat-card glass-panel flex-col">
+            <div class="stat-icon"><i class="fa-solid fa-phone"></i></div>
+            <div class="stat-value" id="stat-calls">0</div>
+            <div class="stat-label">Calls</div>
+          </div>
+          <div class="stat-card glass-panel flex-col">
+            <div class="stat-icon"><i class="fa-solid fa-address-book"></i></div>
+            <div class="stat-value" id="stat-contacts">0</div>
+            <div class="stat-label">Contacts</div>
+          </div>
+          <div class="stat-card glass-panel flex-col">
+            <div class="stat-icon"><i class="fa-solid fa-location-crosshairs"></i></div>
+            <div class="stat-value" id="stat-locations">0</div>
+            <div class="stat-label">Locations</div>
+          </div>
+          <div class="stat-card glass-panel flex-col">
+            <div class="stat-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+            <div class="stat-value neon-red" id="stat-alerts">0</div>
+            <div class="stat-label">Alerts</div>
+          </div>
+        </div>
+
+        <div class="glass-panel summary-panel">
+          <h3><i class="fa-solid fa-bolt"></i> Key Insights</h3>
+          <ul id="insights-list"></ul>
+        </div>
+
+        <div class="glass-panel chart-section">
+          <h3><i class="fa-solid fa-chart-line"></i> Investigation Charts</h3>
+          <div class="chart-grid dashboard-charts">
+            <div class="chart-card">
+              <div class="chart-title">Messages by App</div>
+              <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+                <canvas id="chart-msg-app"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">Call Direction</div>
+              <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+                <canvas id="chart-call-dir"></canvas>
+              </div>
+            </div>
+            <div class="chart-card">
+              <div class="chart-title">Activity Timeline</div>
+              <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+                <canvas id="chart-activity"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-search" class="view-section">
+        <header class="top-nav">
+          <h2>Search & Filter</h2>
+        </header>
+        <div class="glass-panel filter-panel">
+          <div class="filter-grid">
+            <div class="filter-group">
+              <label for="filter-keyword">Keyword</label>
+              <input id="filter-keyword" type="text" placeholder="OTP, money, urgent" />
+            </div>
+            <div class="filter-group">
+              <label for="filter-app">App</label>
+              <select id="filter-app"></select>
+            </div>
+            <div class="filter-group">
+              <label for="filter-contact">Contact</label>
+              <select id="filter-contact"></select>
+            </div>
+            <div class="filter-group">
+              <label for="filter-start">Start Date</label>
+              <input id="filter-start" type="date" />
+            </div>
+            <div class="filter-group">
+              <label for="filter-end">End Date</label>
+              <input id="filter-end" type="date" />
+            </div>
+            <button class="btn primary outline" id="filter-apply">Apply Filters</button>
+          </div>
+        </div>
+        <div class="glass-panel table-container">
+          <table class="data-table" id="search-table">
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>App</th>
+                <th>Sender</th>
+                <th>Receiver</th>
+                <th>Content</th>
+              </tr>
+            </thead>
+            <tbody id="search-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-timeline" class="view-section">
+        <header class="top-nav">
+          <h2>Event Timeline</h2>
+        </header>
+        <div class="glass-panel timeline-container" id="timeline-container"></div>
+      </section>
+
+      <section id="view-locations" class="view-section">
+        <header class="top-nav">
+          <h2>Location Map</h2>
+        </header>
+        <div class="glass-panel map-card">
+          <div id="map"></div>
+          <div class="map-legend">Movement path and GPS markers rendered by timestamp.</div>
+        </div>
+        <div class="glass-panel table-container">
+          <table class="data-table" id="locs-table">
+            <thead>
+              <tr>
+                <th>Timestamp</th>
+                <th>Latitude</th>
+                <th>Longitude</th>
+                <th>Address</th>
+              </tr>
+            </thead>
+            <tbody id="locs-tbody"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="view-alerts" class="view-section">
+        <header class="top-nav">
+          <h2>Suspicious Alerts</h2>
+        </header>
+        <div class="glass-panel alerts-panel">
+          <div class="alert-summary">
+            <div>
+              <strong id="alerts-count">0</strong>
+              <span>Alerts found</span>
+            </div>
+            <div>
+              <strong id="alerts-contacts">0</strong>
+              <span>Risky contacts</span>
+            </div>
+          </div>
+          <div class="alert-list" id="alerts-list"></div>
+        </div>
+      </section>
+
+      <section id="view-graph" class="view-section">
+        <header class="top-nav">
+          <h2><i class="fa-solid fa-chart-bar"></i> Graph Explorer</h2>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Visual analysis of connections, interactions, and suspicious patterns</span>
+        </header>
+
+        <div class="glass-panel" style="margin-bottom: 1rem;">
+          <div class="chart-grid dashboard-charts">
+            <div class="stat-card glass-panel flex-col">
+              <div class="stat-value" id="graph-nodes">0</div>
+              <div class="stat-label">Entities</div>
+            </div>
+            <div class="stat-card glass-panel flex-col">
+              <div class="stat-value" id="graph-edges">0</div>
+              <div class="stat-label">Connections</div>
+            </div>
+            <div class="stat-card glass-panel flex-col">
+              <div class="stat-value neon-red" id="graph-suspicious">0</div>
+              <div class="stat-label">Suspicious</div>
+            </div>
+          </div>
+        </div>
+
+        <div class="chart-grid dashboard-charts" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="glass-panel chart-card" style="height: 320px;">
+            <div class="chart-title"><i class="fa-solid fa-ranking-star"></i> Top Contacts by Interaction Volume</div>
+            <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+              <canvas id="chart-top-contacts"></canvas>
+            </div>
+          </div>
+          <div class="glass-panel chart-card" style="height: 320px;">
+            <div class="chart-title"><i class="fa-solid fa-arrows-split-up-and-left"></i> Messages vs Calls Breakdown</div>
+            <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+              <canvas id="chart-msg-vs-call"></canvas>
+            </div>
+          </div>
+          <div class="glass-panel chart-card" style="height: 320px;">
+            <div class="chart-title"><i class="fa-solid fa-shield-halved"></i> Suspicious vs Normal Activity</div>
+            <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+              <canvas id="chart-suspicious-ratio"></canvas>
+            </div>
+          </div>
+          <div class="glass-panel chart-card" style="height: 320px;">
+            <div class="chart-title"><i class="fa-solid fa-user-secret"></i> Suspicious Contacts Heatmap</div>
+            <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+              <canvas id="chart-suspicious-contacts"></canvas>
+            </div>
+          </div>
+        </div>
+
+        <div class="glass-panel filter-panel">
+          <h3><i class="fa-solid fa-chart-bar"></i> Investigation Charts</h3>
+          <div class="chart-grid dashboard-charts">
+            <div class="chart-card">
+              <div class="chart-title">Message Interaction Frequency</div>
+              <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+                <canvas id="chart-msg-interactions"></canvas>
+              </div>
+            </div>
+
+            <div class="chart-card">
+              <div class="chart-title">Suspicion Score Distribution</div>
+              <div class="chart-wrapper" style="position: relative; flex: 1; min-height: 0;">
+                <canvas id="chart-suspicion-dist"></canvas>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="view-report" class="view-section">
+        <header class="top-nav">
+          <h2>Report Generator</h2>
+        </header>
+        <div class="glass-panel report-panel">
+          <div class="report-summary" id="report-summary"></div>
+          <button class="btn primary glow" id="report-download">Download PDF Report</button>
+          <div class="report-note" id="report-note"></div>
+        </div>
+      </section>
+
+      <section id="view-chat" class="view-section">
+        <header class="top-nav">
+          <h2>AI Forensic Assistant</h2>
+          <span style="font-size: 0.85rem; color: var(--text-muted);">Ask questions about the uploaded data</span>
+        </header>
+        <div class="chat-container">
+          <div class="chat-messages" id="chat-messages"></div>
+          <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Ask about messages, calls, contacts, locations..." />
+            <button class="btn primary" id="chat-send">Send</button>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    document.addEventListener("DOMContentLoaded", () => {
+      const dataScript = document.getElementById("dashboard-data-json").textContent;
+      let appData = { has_data: false };
+      try {
+        appData = JSON.parse(dataScript);
+      } catch (e) {
+        console.error("No JSON data loaded", e);
+      }
+
+      const fileInput = document.getElementById("file-input");
+      const fileListDisplay = document.getElementById("file-list-display");
+      const uploadForm = document.getElementById("upload-form");
+      const uploadBtn = document.getElementById("upload-btn");
+      const loadingSpinner = document.getElementById("loading-spinner");
+
+      if (fileInput) {
+        fileInput.addEventListener("change", function() {
+          if (this.files && this.files.length > 0) {
+            let names = Array.from(this.files).map(f => f.name).join(", ");
+            fileListDisplay.innerHTML = `<div class="upload-note ok"><i class="fa-solid fa-check-circle"></i> Selected: ${names}</div>`;
+          } else {
+            fileListDisplay.innerHTML = "";
+          }
+        });
+      }
+
+      if (uploadForm) {
+        uploadForm.addEventListener("submit", function() {
+          if (fileInput.files.length > 0) {
+            uploadBtn.style.display = "none";
+            loadingSpinner.style.display = "block";
+          }
+        });
+      }
+
+      const navLinks = document.querySelectorAll(".nav-links li");
+      const views = document.querySelectorAll(".view-section");
+
+      let dashboardCharts = { msgApp: null, callDir: null, activity: null };
+      let investigationCharts = { msgInteractions: null, topCalls: null, suspicions: null };
+      let networkGraph = null;
+      let mapInstance = null;
+      let mapLayer = null;
+
+      if (appData && appData.has_data) {
+        enableNav();
+        switchView("dashboard");
+        renderAll(appData);
+      } else if (appData && appData.processing && appData.job_id) {
+        switchView("upload");
+        uploadBtn.style.display = "none";
+        loadingSpinner.style.display = "block";
+        const jobId = appData.job_id;
+        const poll = setInterval(() => {
+          fetch(`/job/${jobId}`)
+            .then(r => r.json())
+            .then(payload => {
+              if (payload.status === "done") {
+                clearInterval(poll);
+                appData = payload.result;
+                enableNav();
+                switchView("dashboard");
+                renderAll(appData);
+                loadingSpinner.style.display = "none";
+                uploadBtn.style.display = "inline-flex";
+              } else if (payload.status === "error") {
+                clearInterval(poll);
+                loadingSpinner.style.display = "none";
+                uploadBtn.style.display = "inline-flex";
+                fileListDisplay.innerHTML = `<div class="upload-note error"><i class="fa-solid fa-triangle-exclamation"></i> Processing failed. Try a smaller file.</div>`;
+              }
+            })
+            .catch(() => {});
+        }, 2000);
+      } else if (appData && appData.error === "invalid_format") {
+        switchView("upload");
+        fileListDisplay.innerHTML = `<div class="upload-note error"><i class="fa-solid fa-triangle-exclamation"></i> Invalid file format. Upload .json, .ufdr, or .csv files.</div>`;
+      } else {
+        switchView("upload");
+      }
+
+      navLinks.forEach(link => {
+        link.addEventListener("click", () => {
+          if(link.classList.contains("disabled")) return;
+          const target = link.getAttribute("data-target");
+          navLinks.forEach(l => l.classList.remove("active"));
+          link.classList.add("active");
+          switchView(target);
+        });
+      });
+
+      function enableNav() {
+        navLinks.forEach(link => {
+          if (link.getAttribute("data-target") !== "upload") {
+            link.classList.remove("disabled");
+          }
+        });
+      }
+
+      function switchView(viewId) {
+        views.forEach(v => v.classList.remove("active"));
+        const view = document.getElementById("view-" + viewId);
+        if (view) view.classList.add("active");
+        if (viewId === "locations" && mapInstance) {
+          setTimeout(() => mapInstance.invalidateSize(), 200);
+        }
+        if (viewId === "chat") {
+          initializeChat();
+        }
+      }
+
+      const keywords = ["otp", "money", "urgent", "delete", "bank", "password", "verify", "transfer", "gift"];
+
+      const safeText = (value) => (value === null || value === undefined ? "" : value.toString().trim());
+      const normalizeDate = (value) => {
+        if (value === null || value === undefined) return null;
+        let dt = new Date(value);
+        if (isNaN(dt)) {
+          const num = Number(value);
+          if (!Number.isNaN(num)) {
+            dt = new Date(num > 1e12 ? num : num * 1000);
+          }
+        }
+        if (isNaN(dt)) return null;
+        return dt.toISOString().slice(0, 10);
+      };
+
+      const getMessageText = (m) => safeText(m.text || m.message || m.body || m.content || m.message_clean);
+      const getMessageApp = (m) => safeText(m.app || m.platform || m.source || m.service || "Unknown") || "Unknown";
+      const getSender = (m) => safeText(m.sender || m.from || m.sender_id || m.sender_name || "Unknown") || "Unknown";
+      const getReceiver = (m) => safeText(m.receiver || m.to || m.receiver_id || m.receiver_name || "Unknown") || "Unknown";
+      const getCallType = (c) => safeText(c.call_type || c.type || c.direction || "unknown").toLowerCase();
+      const getCallNumber = (c) => safeText(c.number || c.phone || c.contact || c.other_party || "Unknown") || "Unknown";
+
+      function buildAlerts(data) {
+        const suspiciousMessages = [];
+        (data.messages || []).forEach(m => {
+          const text = getMessageText(m);
+          const lower = text.toLowerCase();
+          if (!lower) return;
+          const hits = keywords.filter(k => lower.includes(k));
+          if (hits.length > 0) {
+            suspiciousMessages.push({
+              time: m.timestamp || m.time || "Unknown",
+              sender: getSender(m),
+              receiver: getReceiver(m),
+              text,
+              hits
+            });
+          }
+        });
+        const riskyContacts = (data.contacts || []).filter(c => c.rule_based_flag === true || c.rule_based_flag === "True");
+        const abnormalCalls = (data.calls || []).filter(c => c.suspicious_call === true || c.suspicious_call === "True" || c.is_suspicious === true || c.is_suspicious === "True");
+        return { suspiciousMessages, riskyContacts, abnormalCalls };
+      }
+
+      function renderAll(data) {
+        renderDashboard(data);
+        renderSearchFilters(data);
+        renderSearchResults(data);
+        renderTimeline(data);
+        renderLocations(data);
+        renderAlerts(data);
+        renderConnectionsGraphs(data);
+        renderInvestigationCharts(data);
+        renderReport(data);
+      }
+
+      function renderDashboard(data) {
+        const alerts = buildAlerts(data);
+        const alertsCount = alerts.suspiciousMessages.length + alerts.riskyContacts.length + alerts.abnormalCalls.length;
+        document.getElementById("stat-msgs").innerText = data.metrics.total_messages;
+        document.getElementById("stat-calls").innerText = data.metrics.total_calls;
+        document.getElementById("stat-contacts").innerText = (data.contacts || []).length;
+        document.getElementById("stat-locations").innerText = (data.locations || []).length;
+        document.getElementById("stat-alerts").innerText = alertsCount;
+        document.getElementById("rs-val").innerText = data.risk_score;
+
+        let riskColor = "neon-text";
+        if (data.risk_score > 70) riskColor = "neon-red";
+        else if (data.risk_score > 40) riskColor = "neon-yellow";
+        document.getElementById("rs-val").className = riskColor;
+
+        const insights = document.getElementById("insights-list");
+        insights.innerHTML = "";
+        if (alertsCount > 0) {
+          insights.innerHTML += `<li><i class="fa-solid fa-triangle-exclamation text-red"></i> <b>Abnormal Activity Detected:</b> ${alerts.suspiciousMessages.length} Messages, ${alerts.abnormalCalls.length} Calls, and ${alerts.riskyContacts.length} Contacts.</li>`;
+        }
+        insights.innerHTML += `<li><i class="fa-solid fa-magnifying-glass"></i> ${data.metrics.total_messages} messages and ${data.metrics.total_calls} calls analyzed.</li>`;
+        insights.innerHTML += `<li><i class="fa-regular fa-clock"></i> Timeline contains ${data.timeline ? data.timeline.length : 0} merged events.</li>`;
+
+        const appCounts = {};
+        (data.messages || []).forEach(m => {
+          const app = getMessageApp(m);
+          appCounts[app] = (appCounts[app] || 0) + 1;
+        });
+
+        const dirCounts = { incoming: 0, outgoing: 0, missed: 0, unknown: 0 };
+        (data.calls || []).forEach(c => {
+          const t = getCallType(c);
+          if (t.includes("incoming")) dirCounts.incoming += 1;
+          else if (t.includes("outgoing")) dirCounts.outgoing += 1;
+          else if (t.includes("missed")) dirCounts.missed += 1;
+          else dirCounts.unknown += 1;
+        });
+
+        const activity = buildActivitySeries(data);
+
+        if (dashboardCharts.msgApp) dashboardCharts.msgApp.destroy();
+        dashboardCharts.msgApp = new Chart(document.getElementById("chart-msg-app"), {
+          type: "pie",
+          data: { labels: Object.keys(appCounts), datasets: [{ data: Object.values(appCounts), backgroundColor: ["#38bdf8", "#10b981", "#f59e0b", "#f43f5e", "#a855f7"] }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#e2e8f0" } } } }
+        });
+
+        if (dashboardCharts.callDir) dashboardCharts.callDir.destroy();
+        dashboardCharts.callDir = new Chart(document.getElementById("chart-call-dir"), {
+          type: "doughnut",
+          data: { labels: Object.keys(dirCounts), datasets: [{ data: Object.values(dirCounts), backgroundColor: ["#38bdf8", "#10b981", "#f59e0b", "#64748b"] }] },
+          options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { labels: { color: "#e2e8f0" } } } }
+        });
+
+        if (dashboardCharts.activity) dashboardCharts.activity.destroy();
+        dashboardCharts.activity = new Chart(document.getElementById("chart-activity"), {
+          type: "line",
+          data: {
+            labels: activity.labels,
+            datasets: [
+              { label: "Messages", data: activity.msgSeries, borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.2)", tension: 0.35 },
+              { label: "Calls", data: activity.callSeries, borderColor: "#10b981", backgroundColor: "rgba(16,185,129,0.2)", tension: 0.35 }
+            ]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { labels: { color: "#e2e8f0" } } },
+            scales: {
+              x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.06)" } },
+              y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.06)" } }
+            }
+          }
+        });
+      }
+
+      function buildActivitySeries(data) {
+        const msgCounts = {};
+        const callCounts = {};
+        (data.messages || []).forEach(m => {
+          const d = normalizeDate(m.timestamp || m.time);
+          if (!d) return;
+          msgCounts[d] = (msgCounts[d] || 0) + 1;
+        });
+        (data.calls || []).forEach(c => {
+          const d = normalizeDate(c.timestamp || c.start_time || c.start_time_dt);
+          if (!d) return;
+          callCounts[d] = (callCounts[d] || 0) + 1;
+        });
+        const labels = Array.from(new Set([...Object.keys(msgCounts), ...Object.keys(callCounts)])).sort();
+        return { labels, msgSeries: labels.map(l => msgCounts[l] || 0), callSeries: labels.map(l => callCounts[l] || 0) };
+      }
+
+      function renderSearchFilters(data) {
+        const apps = Array.from(new Set((data.messages || []).map(getMessageApp))).sort();
+        const contacts = Array.from(new Set([
+          ...(data.messages || []).map(getSender),
+          ...(data.messages || []).map(getReceiver)
+        ])).filter(c => c && c !== "Unknown").sort();
+
+        const appSelect = document.getElementById("filter-app");
+        const contactSelect = document.getElementById("filter-contact");
+        appSelect.innerHTML = `<option value="all">All</option>` + apps.map(a => `<option value="${a}">${a}</option>`).join("");
+        contactSelect.innerHTML = `<option value="all">All</option>` + contacts.map(c => `<option value="${c}">${c}</option>`).join("");
+
+        document.getElementById("filter-apply").onclick = () => renderSearchResults(data);
+      }
+
+      function renderSearchResults(data) {
+        const keyword = safeText(document.getElementById("filter-keyword").value).toLowerCase();
+        const app = document.getElementById("filter-app").value;
+        const contact = document.getElementById("filter-contact").value;
+        const start = document.getElementById("filter-start").value;
+        const end = document.getElementById("filter-end").value;
+
+        const rows = (data.messages || []).filter(m => {
+          const text = getMessageText(m).toLowerCase();
+          const msgApp = getMessageApp(m);
+          const sender = getSender(m);
+          const receiver = getReceiver(m);
+          const date = normalizeDate(m.timestamp || m.time);
+          if (keyword && !text.includes(keyword)) return false;
+          if (app !== "all" && msgApp !== app) return false;
+          if (contact !== "all" && sender !== contact && receiver !== contact) return false;
+          if (start && date && date < start) return false;
+          if (end && date && date > end) return false;
+          return true;
+        });
+
+        const tbody = document.getElementById("search-tbody");
+        tbody.innerHTML = rows.length ? rows.slice(0, 250).map(m => `
+          <tr>
+            <td>${m.timestamp || m.time || '-'}</td>
+            <td>${getMessageApp(m)}</td>
+            <td>${getSender(m)}</td>
+            <td>${getReceiver(m)}</td>
+            <td>${getMessageText(m) || '-'}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="5">No messages match the filters.</td></tr>`;
+      }
+
+      function renderTimeline(data) {
+        const tl = document.getElementById("timeline-container");
+        tl.innerHTML = "";
+        if (!data.timeline || data.timeline.length === 0) {
+          tl.innerHTML = "<p>No timeline data available.</p>";
+          return;
+        }
+        data.timeline.forEach(event => {
+          let icon = "fa-circle-dot";
+          if (event.type === "message") icon = "fa-comment-dots";
+          if (event.type === "call") icon = "fa-phone-volume";
+          if (event.type === "location") icon = "fa-location-dot";
+          const dt = new Date(event.timestamp);
+          const timeStr = isNaN(dt) ? event.timestamp : dt.toLocaleString();
+          const item = document.createElement("div");
+          item.className = `tl-item type-${event.type}`;
+          item.innerHTML = `
+            <div class="tl-icon"><i class="fa-solid ${icon}"></i></div>
+            <div class="tl-content glass-panel">
+              <div class="tl-time">${timeStr}</div>
+              <div class="tl-desc">${event.desc}</div>
+            </div>
+          `;
+          tl.appendChild(item);
+        });
+      }
+
+      function renderLocations(data) {
+        const rows = (data.locations || []).filter(l => (l.lat ?? l.latitude ?? l.gps_lat ?? l.lat_deg) != null);
+        const tbody = document.getElementById("locs-tbody");
+        tbody.innerHTML = rows.length ? rows.map(l => `
+          <tr>
+            <td>${l.timestamp || l.time || l.datetime || l.date || l.event_time || '-'}</td>
+            <td>${l.lat ?? l.latitude ?? l.gps_lat ?? l.lat_deg ?? '-'}</td>
+            <td>${l.lon ?? l.longitude ?? l.lng ?? l.gps_lon ?? l.lon_deg ?? '-'}</td>
+            <td>${l.address || l.location || l.place || l.city || l.state || l.country || '-'}</td>
+          </tr>
+        `).join("") : `<tr><td colspan="4">No location data available</td></tr>`;
+
+        const points = rows.map(l => {
+          const lat = Number(l.lat ?? l.latitude ?? l.gps_lat ?? l.lat_deg);
+          const lon = Number(l.lon ?? l.longitude ?? l.lng ?? l.gps_lon ?? l.lon_deg);
+          if (Number.isNaN(lat) || Number.isNaN(lon)) return null;
+          return {
+            lat,
+            lon,
+            address: l.address || l.location || l.place || `${lat.toFixed(4)}, ${lon.toFixed(4)}`,
+            time: l.timestamp || l.time || l.datetime || "Unknown"
+          };
+        }).filter(Boolean);
+
+        if (!mapInstance) {
+          mapInstance = L.map("map", { zoomControl: true }).setView([20.5937, 78.9629], 4);
+          L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+            maxZoom: 18,
+            attribution: "&copy; OpenStreetMap"
+          }).addTo(mapInstance);
+        }
+
+        if (mapLayer) {
+          mapLayer.clearLayers();
+        } else {
+          mapLayer = L.layerGroup().addTo(mapInstance);
+        }
+
+        if (points.length === 0) {
+          mapInstance.setView([20.5937, 78.9629], 4);
+          return;
+        }
+
+        const path = [];
+        points.forEach(p => {
+          path.push([p.lat, p.lon]);
+          L.marker([p.lat, p.lon]).addTo(mapLayer).bindPopup(`<strong>${p.address}</strong><br>${p.time}`);
+        });
+        if (path.length > 1) {
+          L.polyline(path, { color: "#38bdf8", weight: 3, opacity: 0.7 }).addTo(mapLayer);
+        }
+        mapInstance.fitBounds(L.latLngBounds(path).pad(0.2));
+      }
+
+      function renderAlerts(data) {
+        const alerts = buildAlerts(data);
+        document.getElementById("alerts-count").innerText = alerts.suspiciousMessages.length;
+        document.getElementById("alerts-contacts").innerText = alerts.riskyContacts.length;
+
+        const list = alerts.suspiciousMessages.slice(0, 25).map(item => `
+          <div class="alert-item">
+            <div class="alert-head">${item.time} · ${item.sender} ? ${item.receiver}</div>
+            <div class="alert-body">${item.text}</div>
+            <div class="alert-tags">${item.hits.map(h => `<span>${h}</span>`).join("")}</div>
+          </div>
+        `).join("");
+        const contacts = alerts.riskyContacts.slice(0, 15).map(c => {
+          const name = safeText(c.name) || safeText(c.phone) || safeText(c.email) || "Unknown";
+          return `<div class="alert-item compact"><div class="alert-head">Risky Contact</div><div class="alert-body">${name}</div></div>`;
+        }).join("");
+
+        document.getElementById("alerts-list").innerHTML = list || contacts || "<div class='empty-state'>No alerts detected.</div>";
+        if (contacts && list) {
+          document.getElementById("alerts-list").innerHTML += contacts;
+        }
+      }
+
+      let connectionCharts = { topContacts: null, msgVsCall: null, suspiciousRatio: null, suspiciousContacts: null };
+
+      function renderConnectionsGraphs(data) {
+        const graphData = data.graph_data || { nodes: [], edges: [], stats: {} };
+        const stats = graphData.stats || {};
+        
+        document.getElementById("graph-nodes").innerText = stats.total_nodes || 0;
+        document.getElementById("graph-edges").innerText = stats.total_edges || 0;
+        document.getElementById("graph-suspicious").innerText = stats.suspicious_nodes || 0;
+        
+        const nodeArray = graphData.nodes || [];
+        const edgeArray = graphData.edges || [];
+        
+        // Build node lookup
+        const nodeMap = {};
+        nodeArray.forEach(n => nodeMap[n.id] = n);
+        
+        // Enrich edges with node labels
+        const enrichedEdges = edgeArray.map(e => ({
+          ...e,
+          fromLabel: (nodeMap[e.from] || {}).label || "Unknown",
+          toLabel: (nodeMap[e.to] || {}).label || "Unknown"
+        }));
+        
+        // --- Chart 1: Top Contacts by Interaction Volume (horizontal bar) ---
+        const contactVolume = {};
+        enrichedEdges.forEach(e => {
+          const pair = `${e.fromLabel} → ${e.toLabel}`;
+          contactVolume[pair] = (contactVolume[pair] || 0) + (e.count || 1);
+        });
+        const sortedPairs = Object.entries(contactVolume).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        
+        if (connectionCharts.topContacts) connectionCharts.topContacts.destroy();
+        connectionCharts.topContacts = new Chart(document.getElementById("chart-top-contacts"), {
+          type: "bar",
+          data: {
+            labels: sortedPairs.map(p => p[0]),
+            datasets: [{
+              label: "Interactions",
+              data: sortedPairs.map(p => p[1]),
+              backgroundColor: sortedPairs.map((_, i) => ['#38bdf8','#10b981','#f59e0b','#8b5cf6','#ec4899','#14b8a6','#f97316','#6366f1'][i % 8]),
+              borderRadius: 4
+            }]
+          },
+          options: {
+            indexAxis: 'y',
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } },
+              y: { ticks: { color: '#e2e8f0', font: { size: 11 } }, grid: { display: false } }
+            }
+          }
+        });
+
+        // --- Chart 2: Messages vs Calls Breakdown (doughnut) ---
+        let msgCount = 0, callCount = 0;
+        enrichedEdges.forEach(e => {
+          if (e.type === "message") msgCount += (e.count || 1);
+          else if (e.type === "call") callCount += (e.count || 1);
+        });
+        
+        if (connectionCharts.msgVsCall) connectionCharts.msgVsCall.destroy();
+        connectionCharts.msgVsCall = new Chart(document.getElementById("chart-msg-vs-call"), {
+          type: "doughnut",
+          data: {
+            labels: ["Messages", "Calls"],
+            datasets: [{
+              data: [msgCount, callCount],
+              backgroundColor: ["#38bdf8", "#10b981"],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#e2e8f0', padding: 15 } }
+            }
+          }
+        });
+
+        // --- Chart 3: Suspicious vs Normal (pie) ---
+        let suspCount = 0, normalCount = 0;
+        enrichedEdges.forEach(e => {
+          if (e.suspicious) suspCount += (e.count || 1);
+          else normalCount += (e.count || 1);
+        });
+        
+        if (connectionCharts.suspiciousRatio) connectionCharts.suspiciousRatio.destroy();
+        connectionCharts.suspiciousRatio = new Chart(document.getElementById("chart-suspicious-ratio"), {
+          type: "pie",
+          data: {
+            labels: ["Suspicious", "Normal"],
+            datasets: [{
+              data: [suspCount, normalCount],
+              backgroundColor: ["#f43f5e", "#4ecdc4"],
+              borderWidth: 0
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+              legend: { position: 'bottom', labels: { color: '#e2e8f0', padding: 15 } }
+            }
+          }
+        });
+
+        // --- Chart 4: Suspicious Contacts Heatmap (bar) ---
+        const suspContacts = {};
+        enrichedEdges.filter(e => e.suspicious).forEach(e => {
+          suspContacts[e.fromLabel] = (suspContacts[e.fromLabel] || 0) + (e.count || 1);
+          suspContacts[e.toLabel] = (suspContacts[e.toLabel] || 0) + (e.count || 1);
+        });
+        const sortedSusp = Object.entries(suspContacts).sort((a, b) => b[1] - a[1]).slice(0, 8);
+        
+        if (connectionCharts.suspiciousContacts) connectionCharts.suspiciousContacts.destroy();
+        connectionCharts.suspiciousContacts = new Chart(document.getElementById("chart-suspicious-contacts"), {
+          type: "bar",
+          data: {
+            labels: sortedSusp.length > 0 ? sortedSusp.map(p => p[0]) : ["No suspicious contacts"],
+            datasets: [{
+              label: "Suspicious Interactions",
+              data: sortedSusp.length > 0 ? sortedSusp.map(p => p[1]) : [0],
+              backgroundColor: sortedSusp.length > 0
+                ? sortedSusp.map((_, i) => `rgba(244, 63, 94, ${1 - i * 0.1})`)
+                : ['rgba(100,100,100,0.3)'],
+              borderRadius: 4
+            }]
+          },
+          options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { color: '#e2e8f0' }, grid: { display: false } },
+              y: { ticks: { color: '#94a3b8' }, grid: { color: 'rgba(255,255,255,0.06)' } }
+            }
+          }
+        });
+      }
+
+
+      function renderInvestigationCharts(data) {
+        const interactions = data.interaction_stats || {};
+        const graphStats = (data.graph_data || {}).stats || {};
+        
+        // Message Interactions Chart
+        const msgInteractions = interactions.message_interactions || {};
+        const msgLabels = Object.keys(msgInteractions).slice(0, 7);
+        const msgValues = msgLabels.map(l => msgInteractions[l]);
+        
+        if (investigationCharts.msgInteractions) investigationCharts.msgInteractions.destroy();
+        investigationCharts.msgInteractions = new Chart(
+          document.getElementById("chart-msg-interactions"),
+          {
+            type: "bar",
+            data: {
+              labels: msgLabels,
+              datasets: [{
+                label: "Messages",
+                data: msgValues,
+                backgroundColor: "rgba(56,189,248,0.6)",
+                borderColor: "#38bdf8",
+                borderWidth: 1
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { labels: { color: "#e2e8f0" } } },
+              scales: {
+                x: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.06)" } },
+                y: { ticks: { color: "#94a3b8" }, grid: { color: "rgba(255,255,255,0.06)" } }
+              }
+            }
+          }
+        );
+        
+
+        
+        // Suspicion Distribution
+        const suspicionData = [
+          graphStats.suspicious_nodes || 0,
+          (graphStats.total_nodes || 0) - (graphStats.suspicious_nodes || 0)
+        ];
+        
+        if (investigationCharts.suspicions) investigationCharts.suspicions.destroy();
+        investigationCharts.suspicions = new Chart(
+          document.getElementById("chart-suspicion-dist"),
+          {
+            type: "pie",
+            data: {
+              labels: ["Suspicious", "Normal"],
+              datasets: [{
+                data: suspicionData,
+                backgroundColor: ["#ff6b6b", "#4ecdc4"]
+              }]
+            },
+            options: {
+              responsive: true,
+              maintainAspectRatio: false,
+              plugins: { legend: { labels: { color: "#e2e8f0" } } }
+            }
+          }
+        );
+        
+        // End of charts
+      }
+
+      function renderReport(data) {
+        const alerts = buildAlerts(data);
+        const summary = `
+          <div class="report-grid">
+            <div><strong>Messages:</strong> ${data.metrics.total_messages}</div>
+            <div><strong>Calls:</strong> ${data.metrics.total_calls}</div>
+            <div><strong>Contacts:</strong> ${(data.contacts || []).length}</div>
+            <div><strong>Locations:</strong> ${(data.locations || []).length}</div>
+            <div><strong>Alerts:</strong> ${alerts.suspiciousMessages.length + alerts.riskyContacts.length}</div>
+          </div>
+          <div class="report-section">
+            <h4>Suspicious Findings</h4>
+            <ul>${alerts.suspiciousMessages.slice(0, 6).map(a => `<li>${a.time}: ${a.text}</li>`).join("") || "<li>No suspicious messages detected.</li>"}</ul>
+          </div>
+        `;
+        document.getElementById("report-summary").innerHTML = summary;
+
+        document.getElementById("report-download").onclick = () => {
+          document.getElementById("report-note").innerText = "Generating PDF report...";
+          fetch("/report", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              summary: {
+                messages: data.metrics.total_messages,
+                calls: data.metrics.total_calls,
+                contacts: (data.contacts || []).length,
+                locations: (data.locations || []).length,
+                alerts: alerts.suspiciousMessages.length + alerts.riskyContacts.length,
+                risk_score: data.risk_score
+              },
+              alerts: alerts.suspiciousMessages.slice(0, 25)
+            })
+          })
+          .then(r => r.blob())
+          .then(blob => {
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement("a");
+            a.href = url;
+            a.download = "ufdr_report.pdf";
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+            document.getElementById("report-note").innerText = "Report downloaded.";
+          })
+          .catch(() => {
+            document.getElementById("report-note").innerText = "Failed to generate report.";
+          });
+        };
+      }
+
+      // Chat functionality
+      const chatMessages = document.getElementById("chat-messages");
+      const chatInput = document.getElementById("chat-input");
+      const chatSendBtn = document.getElementById("chat-send");
+
+      function addChatMessage(text, isUser = false) {
+        if (!chatMessages) return;
+        const messageDiv = document.createElement("div");
+        messageDiv.className = `chat-message ${isUser ? 'user' : 'bot'}`;
+        
+        const bubble = document.createElement("div");
+        bubble.className = "message-bubble";
+        
+        if (isUser) {
+          bubble.textContent = text;
+        } else {
+          // Parse markdown-like formatting for bot responses
+          let html = text
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;');
+          
+          // Bold
+          html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+          
+          // Headings (### then ## then #)
+          html = html.replace(/^### (.+)$/gm, '<h4 style="color: var(--neon-cyan); margin: 0.8rem 0 0.3rem;">$1</h4>');
+          html = html.replace(/^## (.+)$/gm, '<h3 style="color: var(--neon-cyan); margin: 0.8rem 0 0.3rem;">$1</h3>');
+          html = html.replace(/^# (.+)$/gm, '<h3 style="color: var(--neon-cyan); margin: 0.8rem 0 0.3rem;">$1</h3>');
+          
+          // Bullet points (- item or * item)
+          html = html.replace(/^[\-\*] (.+)$/gm, '<li style="margin-left: 1rem; margin-bottom: 0.2rem;">$1</li>');
+          
+          // Wrap consecutive <li> in <ul>
+          html = html.replace(/((?:<li[^>]*>.*?<\/li>\s*)+)/g, '<ul style="list-style: disc; padding-left: 0.5rem; margin: 0.3rem 0;">$1</ul>');
+          
+          // Simple table detection: lines with | pipes
+          const lines = html.split('\n');
+          let tableHtml = '';
+          let inTable = false;
+          let processedLines = [];
+          
+          for (let i = 0; i < lines.length; i++) {
+            const line = lines[i].trim();
+            if (line.includes('|') && line.startsWith('|') && line.endsWith('|')) {
+              // Skip separator rows (|---|---|)
+              if (/^\|[\s\-:|]+\|$/.test(line)) continue;
+              
+              if (!inTable) {
+                inTable = true;
+                tableHtml = '<table style="width: 100%; border-collapse: collapse; margin: 0.5rem 0; font-size: 0.85rem;">';
+              }
+              const cells = line.split('|').filter(c => c.trim() !== '');
+              const isHeader = i === 0 || !inTable;
+              const tag = isHeader ? 'th' : 'td';
+              const style = isHeader 
+                ? 'style="text-align: left; padding: 0.4rem 0.6rem; border-bottom: 1px solid rgba(56,189,248,0.3); color: var(--neon-cyan);"' 
+                : 'style="text-align: left; padding: 0.3rem 0.6rem; border-bottom: 1px solid rgba(255,255,255,0.05);"';
+              tableHtml += '<tr>' + cells.map(c => `<${tag} ${style}>${c.trim()}</${tag}>`).join('') + '</tr>';
+            } else {
+              if (inTable) {
+                inTable = false;
+                tableHtml += '</table>';
+                processedLines.push(tableHtml);
+                tableHtml = '';
+              }
+              processedLines.push(line);
+            }
+          }
+          if (inTable) {
+            tableHtml += '</table>';
+            processedLines.push(tableHtml);
+          }
+          html = processedLines.join('\n');
+          
+          // Line breaks
+          html = html.replace(/\n/g, '<br>');
+          
+          // Clean up double <br> after block elements
+          html = html.replace(/<\/ul><br>/g, '</ul>');
+          html = html.replace(/<\/h[34]><br>/g, m => m.replace('<br>', ''));
+          html = html.replace(/<\/table><br>/g, '</table>');
+          
+          bubble.innerHTML = html;
+        }
+        
+        messageDiv.appendChild(bubble);
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
+
+      // Initialize chat section (placeholder - no welcome message)
+      function initializeChat() {
+        if (!chatMessages) return;
+        // Chat section is ready for user input
+      }
+
+      function handleChatSubmit() {
+        const question = chatInput.value.trim();
+        if (!question) return;
+        
+        addChatMessage(question, true);
+        chatInput.value = "";
+        
+        // Show loading indicator
+        const loadingDiv = document.createElement("div");
+        loadingDiv.className = "loading-indicator chat-message bot";
+        loadingDiv.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i> Analyzing...';
+        chatMessages.appendChild(loadingDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        
+        // Send enriched context to backend
+        const context = {
+          messages: appData.messages ? appData.messages.slice(0, 50) : [],
+          calls: appData.calls ? appData.calls.slice(0, 50) : [],
+          contacts: appData.contacts ? appData.contacts.slice(0, 50) : [],
+          locations: appData.locations ? appData.locations.slice(0, 50) : [],
+          metrics: appData.metrics,
+          risk_score: appData.risk_score || 0,
+          suspicious_activities: appData.suspicious_activities ? appData.suspicious_activities.slice(0, 20) : []
+        };
+        
+        fetch("/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ question, context })
+        })
+        .then(r => r.json())
+        .then(data => {
+          loadingDiv.remove();
+          addChatMessage(data.response || "No response received.", false);
+        })
+        .catch(err => {
+          loadingDiv.remove();
+          addChatMessage("Error: Unable to get response from AI assistant.", false);
+          console.error(err);
+        });
+      }
+
+      if (chatSendBtn) {
+        chatSendBtn.addEventListener("click", handleChatSubmit);
+      }
+      if (chatInput) {
+        chatInput.addEventListener("keypress", (e) => {
+          if (e.key === "Enter") handleChatSubmit();
+        });
+      }
+    });
+  </script>
+</body>
+</html>
+
