@@ -1,6 +1,6 @@
 # UFDR AI Project
 
-A forensic data analysis system for UFDR (Universal Forensic Data Reader) device data with AI-powered insights and threat detection.
+A forensic data analysis system for UFDR (Universal Forensic Device Report) device data with AI-powered insights and threat detection.
 
 ## Features
 
